@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Test",
+    "slackHandle": "@test",
+    "available": true,
+    "lastPicked": false
+  },
+  {
+    "name": "Will",
+    "slackHandle": "@will",
+    "available": true,
+    "lastPicked": true
+  }
+]
