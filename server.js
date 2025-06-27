@@ -8,18 +8,25 @@ dotenv.config();
 
 const { App, ExpressReceiver } = pkg;
 
-
+// Slack app receiver setup
 const receiver = new ExpressReceiver({ signingSecret: process.env.SLACK_SIGNING_SECRET });
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   receiver,
 });
-const dataFile = "./data.json";
 
+// ✅ Handle Slack's challenge for Event Subscriptions
+receiver.router.post('/slack/events', express.json(), (req, res, next) => {
+  if (req.body?.challenge) {
+    return res.status(200).send(req.body.challenge);
+  }
+  next(); // pass to Bolt if not a challenge
+});
+
+const dataFile = "./data.json";
 function loadUsers() {
   return JSON.parse(fs.readFileSync(dataFile));
 }
-
 function saveUsers(users) {
   fs.writeFileSync(dataFile, JSON.stringify(users, null, 2));
 }
@@ -39,6 +46,8 @@ function pickNextChampion() {
   saveUsers(users);
   return next;
 }
+
+const latestMessage = { ts: null, channel: null };
 
 async function postChampionMessage() {
   const champion = pickNextChampion();
@@ -71,16 +80,24 @@ async function postChampionMessage() {
     ],
   });
 
-  // Store the timestamp and channel so we can update it later
   latestMessage.ts = result.ts;
   latestMessage.channel = result.channel;
 }
 
-const latestMessage = { ts: null, channel: null };
+// Slash command
+app.command("/rerollchampion", async ({ ack, respond }) => {
+  await ack();
+  const next = pickNextChampion();
 
+  await respond({
+    response_type: "in_channel",
+    text: `🔁 Manual reroll: ${next.slackHandle} is now today's deploy champion.`,
+  });
+});
+
+// Button action
 app.action("reroll_champion", async ({ ack, body, client }) => {
   await ack();
-
   const previous = body.actions[0].value;
   const users = loadUsers().filter(u => u.name !== previous && u.available);
   const current = users.find(u => !u.lastPicked) || users[0];
@@ -107,23 +124,17 @@ app.action("reroll_champion", async ({ ack, body, client }) => {
   });
 });
 
-app.command("/rerollchampion", async ({ ack, respond }) => {
-  await ack(); // <-- respond to Slack *instantly* to avoid timeout
-
-  const next = pickNextChampion();
-
-  await respond({
-    response_type: "in_channel",
-    text: `🔁 Manual reroll: ${next.slackHandle} is now today's deploy champion.`,
-  });
-});
-
+// Cron scheduler
 cron.schedule("0 9 * * 2,4", () => {
   postChampionMessage();
 });
 
+// Express app
 const expressApp = express();
-expressApp.use('/slack/events', receiver.router);
+expressApp.use('/slack', receiver.router); // handles /events and /commands
+expressApp.post('/slack/commands', express.urlencoded({ extended: true }), (req, res) => {
+  receiver.router.handle(req, res);
+});
 
 const PORT = process.env.PORT || 3000;
 expressApp.listen(PORT, () => {
