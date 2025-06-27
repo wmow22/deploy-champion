@@ -1,10 +1,12 @@
-import { App, ExpressReceiver } from '@slack/bolt';
+import pkg from '@slack/bolt';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import cron from 'node-cron';
 import express from 'express';
 
 dotenv.config();
+
+const { App, ExpressReceiver } = pkg;
 
 
 const receiver = new ExpressReceiver({ signingSecret: process.env.SLACK_SIGNING_SECRET });
