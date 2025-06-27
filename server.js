@@ -14,11 +14,6 @@ const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   receiver,
 });
-receiver.router.post('/slack/events', express.json(), (req, res) => {
-  if (req.body && req.body.challenge) {
-    return res.status(200).send(req.body.challenge);
-  }
-});
 const dataFile = "./data.json";
 
 function loadUsers() {
